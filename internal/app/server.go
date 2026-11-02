@@ -34,6 +34,7 @@ func (s *Server) SetupConfiguration() {
 
 func (s *Server) SetupMiddlewares() {
 	s.Engine.Use(gin.Recovery())
+	s.Engine.Use(middleware.CORSMiddleware())
 	s.Engine.Use(middleware.LoggerMiddleware(s.Env.IsProduction()))
 }
 

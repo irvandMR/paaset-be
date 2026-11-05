@@ -41,7 +41,7 @@ func (a *AuthService) Login(ctx context.Context, req *LoginRequest) (*LoginRespo
 	claims := jwt.MapClaims{
 		"user_id": user.Id,
 		"email":   user.Email,
-		"exp":     time.Now().Add(time.Minute * 5).Unix(),
+		"exp":     time.Now().Add(time.Hour).Unix(),
 		"iss":     "tjus-be",
 		"sub":     "access_token",
 	}

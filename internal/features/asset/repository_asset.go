@@ -244,7 +244,7 @@ func (ar *assetRepository) FindAll(ctx context.Context, filter AssetFilter) ([]A
 		}
 	} else {
 		whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, "ACTIVE")
+		args = append(args, "TERSEDIA")
 		argIdx++
 	}
 

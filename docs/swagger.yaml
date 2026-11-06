@@ -403,17 +403,46 @@ components:
       type: object
       required:
         - id
+        - category_id
         - name
+        - data_type
+        - sort_order
       properties:
         id:
           type: string
           format: uuid
+          example: "0df81e1e-6277-4cf0-a619-32281ec20f5c"
+        category_id:
+          type: string
+          format: uuid
+          example: "20fb06de-22b3-497e-81a2-af558b959236"
         name:
           type: string
-        type_data:
+          example: "Luas Bangunan"
+        data_type:
           type: string
+          enum: [text, number, select]
+          example: "number"
+        unit:
+          type: string
+          example: "m2"
+        options:
+          type: array
+          items:
+            type: string
+          example: []
         is_required:
           type: boolean
+          example: true
+        show_on_card:
+          type: boolean
+          example: true
+        is_active:
+          type: boolean
+          example: true
+        sort_order:
+          type: integer
+          example: 1
 
     CatAttrResponse:
       type: object
@@ -421,15 +450,37 @@ components:
         id:
           type: string
           format: uuid
+          example: "0df81e1e-6277-4cf0-a619-32281ec20f5c"
         category_id:
           type: string
           format: uuid
+          example: "20fb06de-22b3-497e-81a2-af558b959236"
         name:
           type: string
-        type_data:
+          example: "Luas Bangunan"
+        data_type:
           type: string
+          example: "number"
+        unit:
+          type: string
+          example: "m2"
+        options:
+          type: array
+          items:
+            type: string
+          example: []
         is_required:
           type: boolean
+          example: true
+        show_on_card:
+          type: boolean
+          example: true
+        is_active:
+          type: boolean
+          example: true
+        sort_order:
+          type: integer
+          example: 1
 
     SettingsRequest:
       type: object
@@ -893,6 +944,14 @@ paths:
       responses:
         200:
           description: Atribut berhasil diupdate
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/CatAttrResponse'
 
   /category/{id}/attributes:
     get:
@@ -909,6 +968,16 @@ paths:
       responses:
         200:
           description: Daftar atribut kategori
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CatAttrResponse'
 
   /category/attribute/{attr_id}:
     delete:

@@ -7,7 +7,12 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/tjus/main.go",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DB_URL": "postgresql://postgres:postgres@localhost:5433/tjus_db_dev?sslmode=disable",
+                "REDIS_ADDR": "localhost:6380",
+                "APP_ENV": "development"
+            }
         }
     ]
 }

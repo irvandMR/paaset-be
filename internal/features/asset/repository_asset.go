@@ -249,7 +249,7 @@ func (ar *assetRepository) FindAll(ctx context.Context, filter AssetFilter) ([]A
 	}
 
 	// 2. Category filter
-	if filter.CategoryId != nil {
+	if filter.CategoryId != nil && *filter.CategoryId != "" {
 		whereClauses = append(whereClauses, fmt.Sprintf("category_id = $%d", argIdx))
 		args = append(args, *filter.CategoryId)
 		argIdx++

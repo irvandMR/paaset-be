@@ -118,15 +118,15 @@ type UpdateAssetRequest struct {
 }
 
 type AssetFilter struct {
-	CategoryId *uuid.UUID `form:"category_id"`
-	Search     string     `form:"q"`
-	MinPrice   *int64     `form:"min_price"`
-	MaxPrice   *int64     `form:"max_price"`
-	Status     *string    `form:"status"`
-	Sort       string     `form:"sort"`
-	Page       int        `form:"page"`
-	Limit      int        `form:"limit"`
-	Offset     int        `form:"-"`
+	CategoryId *string `form:"category_id"`
+	Search     string  `form:"q"`
+	MinPrice   *int64  `form:"min_price"`
+	MaxPrice   *int64  `form:"max_price"`
+	Status     *string `form:"status"`
+	Sort       string  `form:"sort"`
+	Page       int     `form:"page"`
+	Limit      int     `form:"limit"`
+	Offset     int     `form:"-"`
 }
 
 // Response

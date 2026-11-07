@@ -316,27 +316,38 @@ components:
       type: object
       required:
         - name
+        - sort_order
       properties:
         name:
           type: string
           example: "Kendaraan"
-        description:
-          type: string
-          example: "Kategori truk, mobil, dan alat transportasi"
+        sort_order:
+          type: integer
+          example: 1
+        is_active:
+          type: boolean
+          example: true
 
     UpdateCatRequest:
       type: object
       required:
         - id
         - name
+        - sort_order
       properties:
         id:
           type: string
           format: uuid
+          example: "05254e3c-f8d7-4855-b1f5-e48229ef4960"
         name:
           type: string
-        description:
-          type: string
+          example: "Kendaraan Komersil"
+        sort_order:
+          type: integer
+          example: 1
+        is_active:
+          type: boolean
+          example: true
 
     CatResponse:
       type: object
@@ -344,12 +355,19 @@ components:
         id:
           type: string
           format: uuid
+          example: "05254e3c-f8d7-4855-b1f5-e48229ef4960"
         name:
           type: string
+          example: "Kendaraan"
         slug:
           type: string
-        description:
-          type: string
+          example: "kendaraan"
+        sort_order:
+          type: integer
+          example: 1
+        is_active:
+          type: boolean
+          example: true
 
     AttributeItemRequest:
       type: object
@@ -874,6 +892,14 @@ paths:
       responses:
         200:
           description: Kategori berhasil dibuat
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/CatResponse'
 
   /category/update:
     post:
@@ -891,6 +917,14 @@ paths:
       responses:
         200:
           description: Kategori berhasil diupdate
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/CatResponse'
 
   /category/{id}:
     delete:

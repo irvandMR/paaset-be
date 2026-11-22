@@ -5,14 +5,14 @@ import (
 	"tjus-be/internal/pkg/util"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/gorm"
 )
 
 type HealthHandler struct {
-	db *pgxpool.Pool
+	db *gorm.DB
 }
 
-func NewHealthHandler(db *pgxpool.Pool) *HealthHandler {
+func NewHealthHandler(db *gorm.DB) *HealthHandler {
 	return &HealthHandler{
 		db: db,
 	}
@@ -29,8 +29,8 @@ func (h *HealthHandler) GetHealthHandler(c *gin.Context) {
 }
 
 func (h *HealthHandler) GetHealthHandlerDB(c *gin.Context) {
-	err := h.db.Ping(c.Request.Context())
-	if err != nil {
+	sqlDB, err := h.db.DB()
+	if err != nil || sqlDB.PingContext(c.Request.Context()) != nil {
 		util.ResponseError(c, http.StatusInternalServerError, "Database is unreachable")
 		return
 	}

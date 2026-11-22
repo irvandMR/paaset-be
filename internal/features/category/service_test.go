@@ -6,6 +6,7 @@ import (
 	"tjus-be/internal/pkg/entity"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -160,7 +161,7 @@ func TestCategoryService_EditAttribute(t *testing.T) {
 					Name:       "Tahun Pembuatan",
 					DataType:   "NUMBER",
 					Unit:       "Tahun",
-					Options:    []string{},
+					Options:    pq.StringArray{},
 					IsRequired: true,
 					ShowOnCard: true,
 					IsActive:   true,

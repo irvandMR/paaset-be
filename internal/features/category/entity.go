@@ -4,27 +4,36 @@ import (
 	"tjus-be/internal/pkg/entity"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type Category struct {
 	entity.BaseEntity
-	Name      string `json:"name"`
-	Slug      string `json:"slug"`
-	SortOrder int    `json:"sort_order"`
-	IsActive  bool   `json:"is_active"`
+	Name      string `json:"name" gorm:"column:name;not null"`
+	Slug      string `json:"slug" gorm:"column:slug;not null"`
+	SortOrder int    `json:"sort_order" gorm:"column:sort_order;default:0"`
+	IsActive  bool   `json:"is_active" gorm:"column:is_active;default:true"`
+}
+
+func (Category) TableName() string {
+	return "tbl_categories"
 }
 
 type CategoryAttributes struct {
 	entity.BaseEntity
-	CategoryId uuid.UUID `json:"category_id"`
-	Name       string    `json:"name"`
-	DataType   string    `json:"data_type"`
-	Unit       string    `json:"unit"`
-	Options    []string  `json:"options"`
-	IsRequired bool      `json:"is_required"`
-	ShowOnCard bool      `json:"show_on_card"`
-	IsActive   bool      `json:"is_active"`
-	SortOrder  int       `json:"sort_order"`
+	CategoryId uuid.UUID      `json:"category_id" gorm:"column:category_id"`
+	Name       string         `json:"name" gorm:"column:name"`
+	DataType   string         `json:"data_type" gorm:"column:data_type"`
+	Unit       string         `json:"unit" gorm:"column:unit"`
+	Options    pq.StringArray `json:"options" gorm:"column:options;type:text[]"`
+	IsRequired bool           `json:"is_required" gorm:"column:is_required"`
+	ShowOnCard bool           `json:"show_on_card" gorm:"column:show_on_card"`
+	IsActive   bool           `json:"is_active" gorm:"column:is_active"`
+	SortOrder  int            `json:"sort_order" gorm:"column:sort_order"`
+}
+
+func (CategoryAttributes) TableName() string {
+	return "tbl_catageries_attributes"
 }
 
 // Request
@@ -53,7 +62,7 @@ type AttributeItemRequest struct {
 
 type CreatedCatAttrRequest struct {
 	CategoryId uuid.UUID              `json:"category_id" binding:"required"`
-	Attributes []AttributeItemRequest `json:"attributes" binding:"required,min=1"`
+	Attributes []AttributeItemRequest `json:"attributes" binding:"required"`
 }
 
 type UpdateCatAttrRequest struct {
@@ -66,7 +75,7 @@ type UpdateCatAttrRequest struct {
 	IsRequired bool      `json:"is_required"`
 	ShowOnCard bool      `json:"show_on_card"`
 	IsActive   bool      `json:"is_active"`
-	SortOrder  int       `json:"sort_order" binding:"required"`
+	SortOrder  int       `json:"sort_order"`
 }
 
 // Response

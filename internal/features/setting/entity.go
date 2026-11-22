@@ -7,12 +7,16 @@ import (
 )
 
 type Setting struct {
-	Id                uuid.UUID
-	SiteName          string
-	WaNumber          string
-	WaButtonText      string
-	WaMessageTemplate string
-	UpdatedAt         time.Time
+	Id                uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	SiteName          string    `gorm:"column:site_name;not null"`
+	WaNumber          string    `gorm:"column:wa_number;not null"`
+	WaButtonText      string    `gorm:"column:wa_button_text;not null"`
+	WaMessageTemplate string    `gorm:"column:wa_message_template;not null"`
+	UpdatedAt         time.Time `gorm:"column:updated_at;autoUpdateTime"`
+}
+
+func (Setting) TableName() string {
+	return "tbl_settings"
 }
 
 type SettingsRequest struct {

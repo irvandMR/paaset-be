@@ -2,10 +2,10 @@ package health
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/gorm"
 )
 
-func SetHealthRouter(rg *gin.RouterGroup, db *pgxpool.Pool) {
+func SetHealthRouter(rg *gin.RouterGroup, db *gorm.DB) {
 	healthHandler := NewHealthHandler(db)
 	healthHandler.RegisterRoutes(rg.Group("/health"))
 }

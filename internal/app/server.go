@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -12,14 +13,14 @@ import (
 	"tjus-be/internal/middleware"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 type Server struct {
 	Engine *gin.Engine
 	Cfg    *config.Config
-	DB     *pgxpool.Pool
+	DB     *gorm.DB
 	Env    *config.Environment
 	Redis  *redis.Client
 }
@@ -69,25 +70,25 @@ func (s *Server) Start() {
 		Handler: s.Engine,
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
 	go func() {
-		log.Printf("Starting the application on port %s...", s.Env.Port)
+		log.Printf("Server TJUS berjalan di port: %s\n", s.Env.Port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Server listen error: %v", err)
+			log.Fatalf("Listen error: %s\n", err)
 		}
 	}()
 
-	<-ctx.Done()
-	log.Println("Shutting down server gracefully...")
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	log.Println("Mematikan server TJUS secara aman (Graceful Shutdown)...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server dipaksa berhenti: %v", err)
 	}
 
-	log.Println("Server exited cleanly")
+	log.Println("Server berhasil dimatikan.")
 }

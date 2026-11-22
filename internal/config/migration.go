@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"gorm.io/gorm"
 )
 
-func RunMigrations(pool *pgxpool.Pool) {
-	sqlDB := stdlib.OpenDBFromPool(pool)
-	defer sqlDB.Close()
+func RunMigrations(db *gorm.DB) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Gagal mengambil sql.DB dari GORM: %v", err)
+	}
+
 	if err := goose.SetDialect("postgres"); err != nil {
 		log.Fatalf("Gagal set dialect goose: %v", err)
 	}

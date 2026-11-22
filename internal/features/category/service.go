@@ -3,82 +3,21 @@ package category
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 	"tjus-be/internal/pkg/entity"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type CategoryService struct {
 	catRepo CategoryRepository
 }
 
-func NewCategoryService(catRepo CategoryRepository) *CategoryService {
-	return &CategoryService{catRepo: catRepo}
-}
-
-func (c *CategoryService) CreateCategory(ctx context.Context, req *CreatedCatRequest) (*CategoryResponse, error) {
-	converSlug := generateSlug(req.Name)
-	existingCat, err := c.catRepo.FindBySlug(ctx, converSlug)
-	if err != nil {
-		return nil, err
-	}
-
-	if existingCat != nil {
-		return nil, errors.New("category already exists")
-	}
-
-	cat, err := c.catRepo.InsertCategory(ctx, Category{
-		Name:      req.Name,
-		Slug:      converSlug,
-		SortOrder: req.SortOrder,
-		IsActive:  req.IsActive,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &CategoryResponse{
-		Id:        cat.Id,
-		Name:      cat.Name,
-		Slug:      cat.Slug,
-		SortOrder: cat.SortOrder,
-		IsActive:  cat.IsActive,
-	}, nil
-}
-
-func (c *CategoryService) EditCategory(ctx context.Context, req *UpdateCatRequest) (*CategoryResponse, error) {
-	// 1. Validasi apakah kategori yang mau diedit ada di database
-	if _, err := c.validateCategory(ctx, req.Id); err != nil {
-		return nil, err
-	}
-
-	// 2. Validasi apakah slug baru bentrok dengan data milik kategori lain
-	converSlug := generateSlug(req.Name)
-	if err := c.validateSlug(ctx, converSlug, req.Id); err != nil {
-		return nil, err
-	}
-
-	// 3. Eksekusi update ke database
-	cat, err := c.catRepo.UpdateCategory(ctx, Category{
-		BaseEntity: entity.BaseEntity{Id: req.Id},
-		Name:       req.Name,
-		Slug:       converSlug,
-		SortOrder:  req.SortOrder,
-		IsActive:   req.IsActive,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &CategoryResponse{
-		Id:        cat.Id,
-		Name:      cat.Name,
-		Slug:      cat.Slug,
-		SortOrder: cat.SortOrder,
-		IsActive:  cat.IsActive,
-	}, nil
+func NewCategoryService(categoryRepository CategoryRepository) *CategoryService {
+	return &CategoryService{catRepo: categoryRepository}
 }
 
 func (c *CategoryService) GetAllCategories(ctx context.Context) ([]CategoryResponse, error) {
@@ -97,12 +36,97 @@ func (c *CategoryService) GetAllCategories(ctx context.Context) ([]CategoryRespo
 			IsActive:  cat.IsActive,
 		})
 	}
-
 	return responses, nil
 }
 
+func (c *CategoryService) CreateCategory(ctx context.Context, req *CreatedCatRequest) (*CategoryResponse, error) {
+	baseSlug := generateSlug(req.Name)
+	slug := baseSlug
+
+	existing, err := c.catRepo.FindBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+
+	if existing != nil {
+		return nil, errors.New("category already exists")
+	}
+
+	category, err := c.catRepo.InsertCategory(ctx, Category{
+		Name:      req.Name,
+		Slug:      slug,
+		SortOrder: req.SortOrder,
+		IsActive:  req.IsActive,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &CategoryResponse{
+		Id:        category.Id,
+		Name:      category.Name,
+		Slug:      category.Slug,
+		SortOrder: category.SortOrder,
+		IsActive:  category.IsActive,
+	}, nil
+}
+
+func (c *CategoryService) CreatedCatagory(ctx context.Context, req *CreatedCatRequest) (*CategoryResponse, error) {
+	return c.CreateCategory(ctx, req)
+}
+
+func (c *CategoryService) EditCategory(ctx context.Context, req *UpdateCatRequest) (*CategoryResponse, error) {
+	// 1. Validasi apakah kategori ada
+	existingCategory, err := c.validateCategory(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Jika nama berubah, kita buat slug baru
+	slug := existingCategory.Slug
+	if req.Name != existingCategory.Name {
+		baseSlug := generateSlug(req.Name)
+		slug = baseSlug
+
+		existingSlug, err := c.catRepo.FindBySlug(ctx, slug)
+		if err != nil {
+			return nil, err
+		}
+
+		if existingSlug != nil && existingSlug.Id != req.Id {
+			slug = fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix()%10000)
+		}
+	}
+
+	// 3. Update category
+	category, err := c.catRepo.UpdateCategory(ctx, Category{
+		BaseEntity: entity.BaseEntity{Id: req.Id},
+		Name:       req.Name,
+		Slug:       slug,
+		SortOrder:  req.SortOrder,
+		IsActive:   req.IsActive,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &CategoryResponse{
+		Id:        category.Id,
+		Name:      category.Name,
+		Slug:      category.Slug,
+		SortOrder: category.SortOrder,
+		IsActive:  category.IsActive,
+	}, nil
+}
+
+func (c *CategoryService) EditCatagory(ctx context.Context, req *UpdateCatRequest) (*CategoryResponse, error) {
+	return c.EditCategory(ctx, req)
+}
+
 func (c *CategoryService) DeleteCategory(ctx context.Context, id uuid.UUID) error {
-	// 1. Validasi apakah kategori yang mau dihapus ada
+	// 1. Validasi apakah kategori ada
 	if _, err := c.validateCategory(ctx, id); err != nil {
 		return err
 	}
@@ -129,7 +153,7 @@ func (c *CategoryService) CreateAttribute(ctx context.Context, req *CreatedCatAt
 			Name:       item.Name,
 			DataType:   item.DataType,
 			Unit:       item.Unit,
-			Options:    options,
+			Options:    pq.StringArray(options),
 			IsRequired: item.IsRequired,
 			ShowOnCard: item.ShowOnCard,
 			IsActive:   item.IsActive,
@@ -152,7 +176,7 @@ func (c *CategoryService) CreateAttribute(ctx context.Context, req *CreatedCatAt
 			Name:       a.Name,
 			DataType:   a.DataType,
 			Unit:       a.Unit,
-			Options:    a.Options,
+			Options:    []string(a.Options),
 			IsRequired: a.IsRequired,
 			ShowOnCard: a.ShowOnCard,
 			IsActive:   a.IsActive,
@@ -182,7 +206,7 @@ func (c *CategoryService) GetAttributesByCategoryId(ctx context.Context, categor
 			Name:       a.Name,
 			DataType:   a.DataType,
 			Unit:       a.Unit,
-			Options:    a.Options,
+			Options:    []string(a.Options),
 			IsRequired: a.IsRequired,
 			ShowOnCard: a.ShowOnCard,
 			IsActive:   a.IsActive,
@@ -215,7 +239,7 @@ func (c *CategoryService) EditAttribute(ctx context.Context, req *UpdateCatAttrR
 		Name:       req.Name,
 		DataType:   req.DataType,
 		Unit:       req.Unit,
-		Options:    req.Options,
+		Options:    pq.StringArray(req.Options),
 		IsRequired: req.IsRequired,
 		ShowOnCard: req.ShowOnCard,
 		IsActive:   req.IsActive,
@@ -231,7 +255,7 @@ func (c *CategoryService) EditAttribute(ctx context.Context, req *UpdateCatAttrR
 		Name:       attr.Name,
 		DataType:   attr.DataType,
 		Unit:       attr.Unit,
-		Options:    attr.Options,
+		Options:    []string(attr.Options),
 		IsRequired: attr.IsRequired,
 		ShowOnCard: attr.ShowOnCard,
 		IsActive:   attr.IsActive,
@@ -249,13 +273,8 @@ func (c *CategoryService) DeleteAttribute(ctx context.Context, id uuid.UUID) err
 		return errors.New("attribute not found")
 	}
 
-	// 2. Hapus
+	// 2. Hapus attribute
 	return c.catRepo.DeleteAttribute(ctx, id)
-}
-
-func generateSlug(text string) string {
-	lower := strings.ToLower(text)
-	return strings.ReplaceAll(lower, " ", "-")
 }
 
 func (c *CategoryService) validateCategory(ctx context.Context, id uuid.UUID) (*Category, error) {
@@ -269,13 +288,8 @@ func (c *CategoryService) validateCategory(ctx context.Context, id uuid.UUID) (*
 	return category, nil
 }
 
-func (c *CategoryService) validateSlug(ctx context.Context, slug string, currentId uuid.UUID) error {
-	existingCat, err := c.catRepo.FindBySlug(ctx, slug)
-	if err != nil {
-		return err
-	}
-	if existingCat != nil && existingCat.Id != currentId {
-		return errors.New("category with this slug already exists")
-	}
-	return nil
+func generateSlug(name string) string {
+	slug := strings.ToLower(strings.TrimSpace(name))
+	slug = strings.ReplaceAll(slug, " ", "-")
+	return slug
 }

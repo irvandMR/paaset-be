@@ -2,178 +2,27 @@ package asset
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"gorm.io/gorm"
 )
 
-const insertAssetQuery = `
-	INSERT INTO tbl_assets (
-		code,
-		slug,
-		category_id,
-		title,
-		location,
-		description,
-		badge,
-		price_label,
-		price,
-		price_negotiable,
-		view_count,
-		status,
-		created_at
-	) VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-	)
-	RETURNING 
-		id,
-		code,
-		slug,
-		category_id,
-		title,
-		location,
-		description,
-		badge,
-		price_label,
-		price,
-		price_negotiable,
-		view_count,
-		status,
-		created_at,
-		updated_at
-`
-
-// InsertAsset untuk query normal tanpa transaksi
 func (ar *assetRepository) InsertAsset(ctx context.Context, asset *Asset) (*Asset, error) {
-	dateNow := time.Now()
-	var result Asset
-	err := ar.db.QueryRow(
-		ctx,
-		insertAssetQuery,
-		asset.Code,
-		asset.Slug,
-		asset.CategoryId,
-		asset.Title,
-		asset.Location,
-		asset.Description,
-		asset.Badge,
-		asset.PriceLabel,
-		asset.Price,
-		asset.PriceNegotiable,
-		asset.ViewCount,
-		asset.Status,
-		dateNow,
-	).Scan(
-		&result.Id,
-		&result.Code,
-		&result.Slug,
-		&result.CategoryId,
-		&result.Title,
-		&result.Location,
-		&result.Description,
-		&result.Badge,
-		&result.PriceLabel,
-		&result.Price,
-		&result.PriceNegotiable,
-		&result.ViewCount,
-		&result.Status,
-		&result.CreatedAt,
-		&result.UpdatedAt,
-	)
+	err := ar.db.WithContext(ctx).Create(asset).Error
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
-}
-
-// InsertAssetTx untuk query di dalam transaksi database yang dioper eksplisit
-func (ar *assetRepository) InsertAssetTx(ctx context.Context, tx pgx.Tx, asset *Asset) (*Asset, error) {
-	dateNow := time.Now()
-	var result Asset
-	err := tx.QueryRow(
-		ctx,
-		insertAssetQuery,
-		asset.Code,
-		asset.Slug,
-		asset.CategoryId,
-		asset.Title,
-		asset.Location,
-		asset.Description,
-		asset.Badge,
-		asset.PriceLabel,
-		asset.Price,
-		asset.PriceNegotiable,
-		asset.ViewCount,
-		asset.Status,
-		dateNow,
-	).Scan(
-		&result.Id,
-		&result.Code,
-		&result.Slug,
-		&result.CategoryId,
-		&result.Title,
-		&result.Location,
-		&result.Description,
-		&result.Badge,
-		&result.PriceLabel,
-		&result.Price,
-		&result.PriceNegotiable,
-		&result.ViewCount,
-		&result.Status,
-		&result.CreatedAt,
-		&result.UpdatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return asset, nil
 }
 
 func (ar *assetRepository) FindById(ctx context.Context, id uuid.UUID) (*Asset, error) {
 	var asset Asset
-	query := `
-		SELECT 
-			id,
-			code,
-			slug,
-			category_id,
-			title,
-			location,
-			description,
-			badge,
-			price_label,
-			price,
-			price_negotiable,
-			view_count,
-			status,
-			created_at,
-			updated_at
-		FROM tbl_assets
-		WHERE id = $1
-	`
-
-	err := ar.db.QueryRow(ctx, query, id).Scan(
-		&asset.Id,
-		&asset.Code,
-		&asset.Slug,
-		&asset.CategoryId,
-		&asset.Title,
-		&asset.Location,
-		&asset.Description,
-		&asset.Badge,
-		&asset.PriceLabel,
-		&asset.Price,
-		&asset.PriceNegotiable,
-		&asset.ViewCount,
-		&asset.Status,
-		&asset.CreatedAt,
-		&asset.UpdatedAt,
-	)
+	err := ar.db.WithContext(ctx).Where("id = ?", id).First(&asset).Error
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -183,46 +32,9 @@ func (ar *assetRepository) FindById(ctx context.Context, id uuid.UUID) (*Asset, 
 
 func (ar *assetRepository) FindBySlug(ctx context.Context, slug string) (*Asset, error) {
 	var asset Asset
-	query := `
-		SELECT 
-			id,
-			code,
-			slug,
-			category_id,
-			title,
-			location,
-			description,
-			badge,
-			price_label,
-			price,
-			price_negotiable,
-			view_count,
-			status,
-			created_at,
-			updated_at
-		FROM tbl_assets
-		WHERE slug = $1
-	`
-
-	err := ar.db.QueryRow(ctx, query, slug).Scan(
-		&asset.Id,
-		&asset.Code,
-		&asset.Slug,
-		&asset.CategoryId,
-		&asset.Title,
-		&asset.Location,
-		&asset.Description,
-		&asset.Badge,
-		&asset.PriceLabel,
-		&asset.Price,
-		&asset.PriceNegotiable,
-		&asset.ViewCount,
-		&asset.Status,
-		&asset.CreatedAt,
-		&asset.UpdatedAt,
-	)
+	err := ar.db.WithContext(ctx).Where("slug = ?", slug).First(&asset).Error
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -231,124 +43,50 @@ func (ar *assetRepository) FindBySlug(ctx context.Context, slug string) (*Asset,
 }
 
 func (ar *assetRepository) FindAll(ctx context.Context, filter AssetFilter) ([]Asset, int64, error) {
-	var whereClauses []string
-	var args []any
-	argIdx := 1
+	query := ar.db.WithContext(ctx).Model(&Asset{})
 
-	// 1. Status filter (Default: ACTIVE jika nil/kosong)
+	// 1. Status filter (Default: TERSEDIA jika nil/kosong)
 	if filter.Status != nil && *filter.Status != "" {
 		if strings.ToUpper(*filter.Status) != "ALL" {
-			whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", argIdx))
-			args = append(args, *filter.Status)
-			argIdx++
+			query = query.Where("status = ?", *filter.Status)
 		}
 	} else {
-		whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, "TERSEDIA")
-		argIdx++
+		query = query.Where("status = ?", "TERSEDIA")
 	}
 
 	// 2. Category filter
 	if filter.CategoryId != nil && *filter.CategoryId != "" {
-		whereClauses = append(whereClauses, fmt.Sprintf("category_id = $%d", argIdx))
-		args = append(args, *filter.CategoryId)
-		argIdx++
+		query = query.Where("category_id = ?", *filter.CategoryId)
 	}
 
 	// 3. Search query (title, location, code)
 	if strings.TrimSpace(filter.Search) != "" {
 		keyword := "%" + strings.TrimSpace(filter.Search) + "%"
-		whereClauses = append(whereClauses, fmt.Sprintf("(title ILIKE $%d OR location ILIKE $%d OR code ILIKE $%d)", argIdx, argIdx, argIdx))
-		args = append(args, keyword)
-		argIdx++
+		query = query.Where("title ILIKE ? OR location ILIKE ? OR code ILIKE ?", keyword, keyword, keyword)
 	}
 
 	// 4. Min Price filter
 	if filter.MinPrice != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("price >= $%d", argIdx))
-		args = append(args, *filter.MinPrice)
-		argIdx++
+		query = query.Where("price >= ?", *filter.MinPrice)
 	}
 
 	// 5. Max Price filter
 	if filter.MaxPrice != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("price <= $%d", argIdx))
-		args = append(args, *filter.MaxPrice)
-		argIdx++
-	}
-
-	whereSQL := ""
-	if len(whereClauses) > 0 {
-		whereSQL = " WHERE " + strings.Join(whereClauses, " AND ")
+		query = query.Where("price <= ?", *filter.MaxPrice)
 	}
 
 	// Hitung total data untuk pagination meta
 	var total int64
-	countQuery := "SELECT COUNT(*) FROM tbl_assets" + whereSQL
-	if err := ar.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	orderBySQL := mapSortOrder(filter.Sort)
 
 	// Ambil data aset sesuai limit, offset, dan opsi pengurutan
-	query := fmt.Sprintf(`
-		SELECT 
-			id,
-			code,
-			slug,
-			category_id,
-			title,
-			location,
-			description,
-			badge,
-			price_label,
-			price,
-			price_negotiable,
-			view_count,
-			status,
-			created_at,
-			updated_at
-		FROM tbl_assets
-		%s
-		ORDER BY %s
-		LIMIT $%d OFFSET $%d
-	`, whereSQL, orderBySQL, argIdx, argIdx+1)
-
-	queryArgs := append(args, filter.Limit, filter.Offset)
-	rows, err := ar.db.Query(ctx, query, queryArgs...)
+	var assets []Asset
+	err := query.Order(orderBySQL).Limit(filter.Limit).Offset(filter.Offset).Find(&assets).Error
 	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	assets := make([]Asset, 0)
-	for rows.Next() {
-		var a Asset
-		err := rows.Scan(
-			&a.Id,
-			&a.Code,
-			&a.Slug,
-			&a.CategoryId,
-			&a.Title,
-			&a.Location,
-			&a.Description,
-			&a.Badge,
-			&a.PriceLabel,
-			&a.Price,
-			&a.PriceNegotiable,
-			&a.ViewCount,
-			&a.Status,
-			&a.CreatedAt,
-			&a.UpdatedAt,
-		)
-		if err != nil {
-			return nil, 0, err
-		}
-		assets = append(assets, a)
-	}
-
-	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
 
@@ -373,68 +111,51 @@ func mapSortOrder(sortParam string) string {
 	}
 }
 
-func (ar *assetRepository) UpdateAssetTx(ctx context.Context, tx pgx.Tx, asset *Asset) error {
-	dateNow := time.Now()
-	query := `
-		UPDATE tbl_assets SET
-			title = $1,
-			slug = $2,
-			location = $3,
-			description = $4,
-			badge = $5,
-			price_label = $6,
-			price = $7,
-			price_negotiable = $8,
-			updated_at = $9
-		WHERE id = $10
-	`
-	_, err := tx.Exec(
-		ctx,
-		query,
-		asset.Title,
-		asset.Slug,
-		asset.Location,
-		asset.Description,
-		asset.Badge,
-		asset.PriceLabel,
-		asset.Price,
-		asset.PriceNegotiable,
-		dateNow,
-		asset.Id,
-	)
-	return err
+func (ar *assetRepository) UpdateAsset(ctx context.Context, asset *Asset) error {
+	now := time.Now()
+	asset.UpdatedAt = &now
+
+	return ar.db.WithContext(ctx).
+		Model(&Asset{}).
+		Where("id = ?", asset.Id).
+		Updates(map[string]any{
+			"title":            asset.Title,
+			"slug":             asset.Slug,
+			"location":         asset.Location,
+			"description":      asset.Description,
+			"badge":            asset.Badge,
+			"price_label":      asset.PriceLabel,
+			"price":            asset.Price,
+			"price_negotiable": asset.PriceNegotiable,
+			"updated_at":       asset.UpdatedAt,
+		}).Error
 }
 
-func (ar *assetRepository) UpdateAssetStatusTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, status string) error {
-	dateNow := time.Now()
-	query := `
-		UPDATE tbl_assets SET
-			status = $1,
-			updated_at = $2
-		WHERE id = $3
-	`
-	_, err := tx.Exec(ctx, query, status, dateNow, id)
-	return err
+func (ar *assetRepository) UpdateAssetStatus(ctx context.Context, id uuid.UUID, status string) error {
+	now := time.Now()
+	return ar.db.WithContext(ctx).
+		Model(&Asset{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"status":     status,
+			"updated_at": now,
+		}).Error
 }
 
 func (ar *assetRepository) DeleteAsset(ctx context.Context, id uuid.UUID) error {
-	dateNow := time.Now()
-	query := `
-		UPDATE tbl_assets SET
-			status = 'DELETED',
-			updated_at = $1
-		WHERE id = $2
-	`
-	_, err := ar.db.Exec(ctx, query, dateNow, id)
-	return err
+	now := time.Now()
+	return ar.db.WithContext(ctx).
+		Model(&Asset{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"status":     "DELETED",
+			"updated_at": now,
+		}).Error
 }
 
 func (ar *assetRepository) IncrementViewCount(ctx context.Context, id uuid.UUID) error {
-	query := `
-		UPDATE tbl_assets SET
-			view_count = view_count + 1
-		WHERE id = $1
-	`
-	_, err := ar.db.Exec(ctx, query, id)
-	return err
+	return ar.db.WithContext(ctx).
+		Model(&Asset{}).
+		Where("id = ?", id).
+		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }

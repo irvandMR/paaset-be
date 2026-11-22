@@ -4,10 +4,14 @@ import "tjus-be/internal/pkg/entity"
 
 type AdminUser struct {
 	entity.BaseEntity
-	Email        string `json:"email"`
-	PasswordHash string `json:"-"`
-	Name         string `json:"name"`
-	Token        *string
+	Email        string  `json:"email" gorm:"column:email;uniqueIndex;not null"`
+	PasswordHash string  `json:"-" gorm:"column:password_hash"`
+	Name         string  `json:"name" gorm:"column:name"`
+	Token        *string `json:"token" gorm:"column:token"`
+}
+
+func (AdminUser) TableName() string {
+	return "tbl_admin_users"
 }
 
 type LoginRequest struct {

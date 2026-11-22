@@ -2,11 +2,11 @@ package category
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/gorm"
 )
 
 type CategoryRepository interface {
@@ -27,280 +27,114 @@ type CategoryRepository interface {
 }
 
 type categoryRepository struct {
-	db *pgxpool.Pool
+	db *gorm.DB
 }
 
 // FindAll implements [CategoryRepository].
 func (c *categoryRepository) FindAll(ctx context.Context) ([]Category, error) {
-	query := `
-		SELECT id, name, slug, sort_order, is_active, created_at, updated_at 
-		FROM tbl_categories 
-		ORDER BY sort_order ASC
-	`
-	rows, err := c.db.Query(ctx, query)
+	var categories []Category
+	err := c.db.WithContext(ctx).
+		Order("sort_order ASC").
+		Find(&categories).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	categories := make([]Category, 0)
-	for rows.Next() {
-		var category Category
-		err := rows.Scan(
-			&category.Id,
-			&category.Name,
-			&category.Slug,
-			&category.SortOrder,
-			&category.IsActive,
-			&category.CreatedAt,
-			&category.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		categories = append(categories, category)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
 	return categories, nil
 }
 
 // UpdateCategory implements [CategoryRepository].
 func (c *categoryRepository) UpdateCategory(ctx context.Context, request Category) (*Category, error) {
-	dateNow := time.Now()
-	query := `
-		UPDATE tbl_categories
-		SET 
-			name = $1,
-			slug = $2,
-			sort_order = $3,
-			is_active = $4,
-			updated_at = $5
-		WHERE id = $6
-		RETURNING id, name, slug, sort_order, is_active, created_at, updated_at
-	`
-	var category Category
-	err := c.db.QueryRow(ctx, query, request.Name, request.Slug, request.SortOrder, request.IsActive, dateNow, request.Id).Scan(&category.Id, &category.Name, &category.Slug, &category.SortOrder, &category.IsActive, &category.CreatedAt, &category.UpdatedAt)
+	now := time.Now()
+	request.UpdatedAt = &now
+
+	err := c.db.WithContext(ctx).
+		Model(&Category{}).
+		Where("id = ?", request.Id).
+		Updates(map[string]any{
+			"name":       request.Name,
+			"slug":       request.Slug,
+			"sort_order": request.SortOrder,
+			"is_active":  request.IsActive,
+			"updated_at": request.UpdatedAt,
+		}).Error
+
 	if err != nil {
 		return nil, err
 	}
-	return &category, nil
-
+	return &request, nil
 }
 
 // FindById implements [CategoryRepository].
 func (c *categoryRepository) FindById(ctx context.Context, id uuid.UUID) (*Category, error) {
 	var category Category
-	query := `
-		SELECT id, name, slug, sort_order, is_active, created_at, updated_at 
-		FROM tbl_categories 
-		WHERE id = $1
-	`
-	err := c.db.QueryRow(ctx, query, id).Scan(&category.Id, &category.Name, &category.Slug, &category.SortOrder, &category.IsActive, &category.CreatedAt, &category.UpdatedAt)
+	err := c.db.WithContext(ctx).Where("id = ?", id).First(&category).Error
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
-
 	return &category, nil
 }
 
 // FindBySlug implements [CategoryRepository].
 func (c *categoryRepository) FindBySlug(ctx context.Context, slug string) (*Category, error) {
 	var category Category
-	query := `
-		SELECT id, name, slug, sort_order, is_active, created_at 
-		FROM tbl_categories 
-		WHERE slug = $1
-	`
-	err := c.db.QueryRow(ctx, query, slug).Scan(&category.Id, &category.Name, &category.Slug, &category.SortOrder, &category.IsActive, &category.CreatedAt)
+	err := c.db.WithContext(ctx).Where("slug = ?", slug).First(&category).Error
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
-
 	return &category, nil
 }
 
 // InsertCategory implements [CategoryRepository].
 func (c *categoryRepository) InsertCategory(ctx context.Context, request Category) (*Category, error) {
-
-	dateNow := time.Now()
-
-	query := `
-	INSERT INTO tbl_categories (name, slug, sort_order, is_active, created_at)
-	VALUES ($1, $2, $3, $4, $5)
-	RETURNING id, name, slug, sort_order, is_active, created_at
-	`
-	var category Category
-	err := c.db.QueryRow(ctx, query, request.Name, request.Slug, request.SortOrder, request.IsActive, dateNow).Scan(&category.Id, &category.Name, &category.Slug, &category.SortOrder, &category.IsActive, &category.CreatedAt)
+	err := c.db.WithContext(ctx).Create(&request).Error
 	if err != nil {
 		return nil, err
 	}
-	return &category, nil
+	return &request, nil
 }
 
 // DeleteCategory implements [CategoryRepository].
 func (c *categoryRepository) DeleteCategory(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM tbl_categories WHERE id = $1`
-	_, err := c.db.Exec(ctx, query, id)
-	return err
+	return c.db.WithContext(ctx).Where("id = ?", id).Delete(&Category{}).Error
 }
 
 // InsertAttribute implements [CategoryRepository].
 func (c *categoryRepository) InsertAttribute(ctx context.Context, attr CategoryAttributes) (*CategoryAttributes, error) {
-	dateNow := time.Now()
-	query := `
-		INSERT INTO tbl_catageries_attributes (
-			category_id, name, data_type, unit, options, is_required, show_on_card, is_active, sort_order, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, category_id, name, data_type, unit, options, is_required, show_on_card, is_active, sort_order, created_at, updated_at
-	`
-	var result CategoryAttributes
-	err := c.db.QueryRow(
-		ctx,
-		query,
-		attr.CategoryId,
-		attr.Name,
-		attr.DataType,
-		attr.Unit,
-		attr.Options,
-		attr.IsRequired,
-		attr.ShowOnCard,
-		attr.IsActive,
-		attr.SortOrder,
-		dateNow,
-		dateNow,
-	).Scan(
-		&result.Id,
-		&result.CategoryId,
-		&result.Name,
-		&result.DataType,
-		&result.Unit,
-		&result.Options,
-		&result.IsRequired,
-		&result.ShowOnCard,
-		&result.IsActive,
-		&result.SortOrder,
-		&result.CreatedAt,
-		&result.UpdatedAt,
-	)
+	err := c.db.WithContext(ctx).Create(&attr).Error
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return &attr, nil
 }
 
-// BulkInsertAttributes menyimpan banyak atribut kategori sekaligus menggunakan pgx.Batch
+// BulkInsertAttributes menyimpan banyak atribut kategori sekaligus menggunakan GORM batch create
 func (c *categoryRepository) BulkInsertAttributes(ctx context.Context, attrs []CategoryAttributes) ([]CategoryAttributes, error) {
 	if len(attrs) == 0 {
 		return []CategoryAttributes{}, nil
 	}
 
-	dateNow := time.Now()
-	query := `
-		INSERT INTO tbl_catageries_attributes (
-			category_id, name, data_type, unit, options, is_required, show_on_card, is_active, sort_order, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, category_id, name, data_type, unit, options, is_required, show_on_card, is_active, sort_order, created_at, updated_at
-	`
-
-	batch := &pgx.Batch{}
-	for _, attr := range attrs {
-		options := attr.Options
-		if options == nil {
-			options = []string{}
-		}
-		batch.Queue(
-			query,
-			attr.CategoryId,
-			attr.Name,
-			attr.DataType,
-			attr.Unit,
-			options,
-			attr.IsRequired,
-			attr.ShowOnCard,
-			attr.IsActive,
-			attr.SortOrder,
-			dateNow,
-			dateNow,
-		)
+	err := c.db.WithContext(ctx).Create(&attrs).Error
+	if err != nil {
+		return nil, err
 	}
 
-	br := c.db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	results := make([]CategoryAttributes, 0, len(attrs))
-	for range attrs {
-		var result CategoryAttributes
-		err := br.QueryRow().Scan(
-			&result.Id,
-			&result.CategoryId,
-			&result.Name,
-			&result.DataType,
-			&result.Unit,
-			&result.Options,
-			&result.IsRequired,
-			&result.ShowOnCard,
-			&result.IsActive,
-			&result.SortOrder,
-			&result.CreatedAt,
-			&result.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, result)
-	}
-
-	return results, nil
+	return attrs, nil
 }
 
 // FindAttributesByCategoryId implements [CategoryRepository].
 func (c *categoryRepository) FindAttributesByCategoryId(ctx context.Context, categoryId uuid.UUID) ([]CategoryAttributes, error) {
-	query := `
-		SELECT id, category_id, name, data_type, unit, options, is_required, show_on_card, is_active, sort_order, created_at, updated_at
-		FROM tbl_catageries_attributes
-		WHERE category_id = $1
-		ORDER BY sort_order ASC
-	`
-	rows, err := c.db.Query(ctx, query, categoryId)
+	var attributes []CategoryAttributes
+	err := c.db.WithContext(ctx).
+		Where("category_id = ?", categoryId).
+		Order("sort_order ASC").
+		Find(&attributes).Error
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	attributes := make([]CategoryAttributes, 0)
-	for rows.Next() {
-		var attr CategoryAttributes
-		err := rows.Scan(
-			&attr.Id,
-			&attr.CategoryId,
-			&attr.Name,
-			&attr.DataType,
-			&attr.Unit,
-			&attr.Options,
-			&attr.IsRequired,
-			&attr.ShowOnCard,
-			&attr.IsActive,
-			&attr.SortOrder,
-			&attr.CreatedAt,
-			&attr.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		attributes = append(attributes, attr)
-	}
-
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return attributes, nil
@@ -308,28 +142,10 @@ func (c *categoryRepository) FindAttributesByCategoryId(ctx context.Context, cat
 
 // FindAttributeById implements [CategoryRepository].
 func (c *categoryRepository) FindAttributeById(ctx context.Context, id uuid.UUID) (*CategoryAttributes, error) {
-	query := `
-		SELECT id, category_id, name, data_type, unit, options, is_required, show_on_card, is_active, sort_order, created_at, updated_at
-		FROM tbl_catageries_attributes
-		WHERE id = $1
-	`
 	var attr CategoryAttributes
-	err := c.db.QueryRow(ctx, query, id).Scan(
-		&attr.Id,
-		&attr.CategoryId,
-		&attr.Name,
-		&attr.DataType,
-		&attr.Unit,
-		&attr.Options,
-		&attr.IsRequired,
-		&attr.ShowOnCard,
-		&attr.IsActive,
-		&attr.SortOrder,
-		&attr.CreatedAt,
-		&attr.UpdatedAt,
-	)
+	err := c.db.WithContext(ctx).Where("id = ?", id).First(&attr).Error
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
@@ -339,65 +155,36 @@ func (c *categoryRepository) FindAttributeById(ctx context.Context, id uuid.UUID
 
 // UpdateAttribute implements [CategoryRepository].
 func (c *categoryRepository) UpdateAttribute(ctx context.Context, attr CategoryAttributes) (*CategoryAttributes, error) {
-	dateNow := time.Now()
-	query := `
-		UPDATE tbl_catageries_attributes
-		SET 
-			category_id = $1,
-			name = $2,
-			data_type = $3,
-			unit = $4,
-			options = $5,
-			is_required = $6,
-			show_on_card = $7,
-			is_active = $8,
-			sort_order = $9,
-			updated_at = $10
-		WHERE id = $11
-		RETURNING id, category_id, name, data_type, unit, options, is_required, show_on_card, is_active, sort_order, created_at, updated_at
-	`
-	var result CategoryAttributes
-	err := c.db.QueryRow(
-		ctx,
-		query,
-		attr.CategoryId,
-		attr.Name,
-		attr.DataType,
-		attr.Unit,
-		attr.Options,
-		attr.IsRequired,
-		attr.ShowOnCard,
-		attr.IsActive,
-		attr.SortOrder,
-		dateNow,
-		attr.Id,
-	).Scan(
-		&result.Id,
-		&result.CategoryId,
-		&result.Name,
-		&result.DataType,
-		&result.Unit,
-		&result.Options,
-		&result.IsRequired,
-		&result.ShowOnCard,
-		&result.IsActive,
-		&result.SortOrder,
-		&result.CreatedAt,
-		&result.UpdatedAt,
-	)
+	now := time.Now()
+	attr.UpdatedAt = &now
+
+	err := c.db.WithContext(ctx).
+		Model(&CategoryAttributes{}).
+		Where("id = ?", attr.Id).
+		Updates(map[string]any{
+			"category_id":  attr.CategoryId,
+			"name":         attr.Name,
+			"data_type":    attr.DataType,
+			"unit":         attr.Unit,
+			"options":      attr.Options,
+			"is_required":  attr.IsRequired,
+			"show_on_card": attr.ShowOnCard,
+			"is_active":    attr.IsActive,
+			"sort_order":   attr.SortOrder,
+			"updated_at":   attr.UpdatedAt,
+		}).Error
+
 	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return &attr, nil
 }
 
 // DeleteAttribute implements [CategoryRepository].
 func (c *categoryRepository) DeleteAttribute(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM tbl_catageries_attributes WHERE id = $1`
-	_, err := c.db.Exec(ctx, query, id)
-	return err
+	return c.db.WithContext(ctx).Where("id = ?", id).Delete(&CategoryAttributes{}).Error
 }
 
-func NewCategoryRepository(db *pgxpool.Pool) CategoryRepository {
+func NewCategoryRepository(db *gorm.DB) CategoryRepository {
 	return &categoryRepository{db: db}
 }

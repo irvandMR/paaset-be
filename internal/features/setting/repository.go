@@ -2,11 +2,11 @@ package setting
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/gorm"
 )
 
 type SettingsRepository interface {
@@ -17,75 +17,42 @@ type SettingsRepository interface {
 }
 
 type settingsRepository struct {
-	db *pgxpool.Pool
+	db *gorm.DB
 }
 
 func (sr *settingsRepository) InsertSettings(ctx context.Context, request Setting) error {
-
-	query := `
-		INSERT INTO tbl_settings (site_name, wa_number, wa_button_text, wa_message_template)
-		VALUES ($1, $2, $3, $4)
-	`
-
-	_, err := sr.db.Exec(ctx, query, request.SiteName, request.WaNumber, request.WaButtonText, request.WaMessageTemplate)
-
-	return err
+	return sr.db.WithContext(ctx).Create(&request).Error
 }
 
 func (sr *settingsRepository) UpdateSettings(ctx context.Context, request Setting) (*Setting, error) {
 	dateTime := time.Now()
+	request.UpdatedAt = dateTime
 
-	query := `
-		UPDATE tbl_settings
-		SET 
-			site_name = $1,
-			wa_number = $2,
-			wa_button_text = $3,
-			wa_message_template = $4,
-			updated_at = $5
-		WHERE id = $6
-		RETURNING id, site_name, wa_number, wa_button_text, wa_message_template, updated_at
-	`
-
-	var setting Setting
-	err := sr.db.QueryRow(
-		ctx,
-		query,
-		request.SiteName,
-		request.WaNumber,
-		request.WaButtonText,
-		request.WaMessageTemplate,
-		dateTime,
-		request.Id,
-	).Scan(
-		&setting.Id,
-		&setting.SiteName,
-		&setting.WaNumber,
-		&setting.WaButtonText,
-		&setting.WaMessageTemplate,
-		&setting.UpdatedAt)
+	err := sr.db.WithContext(ctx).
+		Model(&Setting{}).
+		Where("id = ?", request.Id).
+		Updates(map[string]any{
+			"site_name":            request.SiteName,
+			"wa_number":            request.WaNumber,
+			"wa_button_text":       request.WaButtonText,
+			"wa_message_template": request.WaMessageTemplate,
+			"updated_at":           dateTime,
+		}).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &setting, nil
+	return &request, nil
 }
 
 func (sr *settingsRepository) FindById(ctx context.Context, id uuid.UUID) (*Setting, error) {
 	var setting Setting
-	query := `
-		SELECT id, site_name, wa_number, wa_button_text, wa_message_template, updated_at
-		FROM tbl_settings
-		WHERE id = $1
-	`
-
-	err := sr.db.QueryRow(ctx, query, id).Scan(&setting.Id, &setting.SiteName, &setting.WaNumber, &setting.WaButtonText, &setting.WaMessageTemplate, &setting.UpdatedAt)
+	err := sr.db.WithContext(ctx).Where("id = ?", id).First(&setting).Error
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-
 		return nil, err
 	}
 	return &setting, nil
@@ -93,22 +60,16 @@ func (sr *settingsRepository) FindById(ctx context.Context, id uuid.UUID) (*Sett
 
 func (sr *settingsRepository) Find(ctx context.Context) (*Setting, error) {
 	var setting Setting
-	query := `
-		SELECT id, site_name, wa_number, wa_button_text, wa_message_template, updated_at
-		FROM tbl_settings LIMIT 1
-	`
-
-	err := sr.db.QueryRow(ctx, query).Scan(&setting.Id, &setting.SiteName, &setting.WaNumber, &setting.WaButtonText, &setting.WaMessageTemplate, &setting.UpdatedAt)
+	err := sr.db.WithContext(ctx).Order("updated_at DESC").First(&setting).Error
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-
 		return nil, err
 	}
 	return &setting, nil
 }
 
-func NewSettingsRepository(db *pgxpool.Pool) SettingsRepository {
+func NewSettingsRepository(db *gorm.DB) SettingsRepository {
 	return &settingsRepository{db: db}
 }

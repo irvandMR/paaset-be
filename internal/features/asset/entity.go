@@ -11,48 +11,64 @@ import (
 
 type Asset struct {
 	entity.BaseEntity
-	Code            string
-	Slug            string
-	CategoryId      uuid.UUID
-	Title           string
-	Location        string
-	Description     string
-	Badge           string
-	PriceLabel      string
-	Price           int64
-	PriceNegotiable bool
-	ViewCount       int32
-	Status          string
+	Code            string    `json:"code" gorm:"column:code;not null;uniqueIndex"`
+	Slug            string    `json:"slug" gorm:"column:slug;not null;uniqueIndex"`
+	CategoryId      uuid.UUID `json:"category_id" gorm:"column:category_id"`
+	Title           string    `json:"title" gorm:"column:title;not null"`
+	Location        string    `json:"location" gorm:"column:location;not null"`
+	Description     string    `json:"description" gorm:"column:description"`
+	Badge           string    `json:"badge" gorm:"column:badge"`
+	PriceLabel      string    `json:"price_label" gorm:"column:price_label"`
+	Price           int64     `json:"price" gorm:"column:price;not null"`
+	PriceNegotiable bool      `json:"price_negotiable" gorm:"column:price_negotiable"`
+	ViewCount       int32     `json:"view_count" gorm:"column:view_count;default:0"`
+	Status          string    `json:"status" gorm:"column:status"`
+}
+
+func (Asset) TableName() string {
+	return "tbl_assets"
 }
 
 type AssetAttributes struct {
-	Id                  uuid.UUID
-	AssetId             uuid.UUID
-	CategoryAttributeId uuid.UUID
-	Name                *string
-	DataType            *string
-	Unit                *string
-	CustomeLabel        string
-	ValueText           string
-	ValueNumber         int64
-	SortOrder           int
+	Id                  uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	AssetId             uuid.UUID `json:"asset_id" gorm:"column:asset_id"`
+	CategoryAttributeId uuid.UUID `json:"attribute_id" gorm:"column:attribute_id"`
+	Name                *string   `json:"name,omitempty" gorm:"->"`
+	DataType            *string   `json:"data_type,omitempty" gorm:"->"`
+	Unit                *string   `json:"unit,omitempty" gorm:"->"`
+	CustomeLabel        string    `json:"custome_label" gorm:"column:custome_label"`
+	ValueText           string    `json:"value_text" gorm:"column:value_text"`
+	ValueNumber         int64     `json:"value_number" gorm:"column:value_number"`
+	SortOrder           int       `json:"sort_order" gorm:"column:sort_order"`
+}
+
+func (AssetAttributes) TableName() string {
+	return "tbl_asset_attribute_values"
 }
 
 type AssetMedia struct {
-	Id        uuid.UUID
-	AssetId   uuid.UUID
-	TypeMedia string
-	FilePath  string
-	SortOrder int
-	CreatedAt time.Time
+	Id        uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	AssetId   uuid.UUID `json:"asset_id" gorm:"column:asset_id"`
+	TypeMedia string    `json:"type_media" gorm:"column:type_media"`
+	FilePath  string    `json:"file_path" gorm:"column:file_path"`
+	SortOrder int       `json:"sort_order" gorm:"column:sort_order"`
+	CreatedAt time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+}
+
+func (AssetMedia) TableName() string {
+	return "tbl_asset_media"
 }
 
 type AssetOwner struct {
-	AssetId       uuid.UUID
-	OwnerName     string
-	OwnerContact  string
-	InternalNotes string
-	UpdatedAt     time.Time
+	AssetId       uuid.UUID `json:"asset_id" gorm:"column:asset_id;primaryKey"`
+	OwnerName     string    `json:"owner_name" gorm:"column:owner_name;not null"`
+	OwnerContact  string    `json:"owner_contact" gorm:"column:owner_contact;not null"`
+	InternalNotes string    `json:"internal_notes" gorm:"column:internal_notes"`
+	UpdatedAt     time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
+}
+
+func (AssetOwner) TableName() string {
+	return "tbl_asset_owner_info"
 }
 
 // Request

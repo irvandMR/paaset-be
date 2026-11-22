@@ -107,65 +107,62 @@ func (s *AssetService) CreateAsset(ctx context.Context, req *AssetRequest) (*Ass
 		finalSlug = fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix()%10000)
 	}
 
-	// 3. Buka transaksi database secara langsung dan eksplisit
-	tx, err := s.assetRepo.BeginTx(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx) // otomatis rollback jika error atau belum di-commit
+	// 3. Buka transaksi database untuk menyimpan data aset, owner, dan atribut
+	var newAsset *Asset
+	err = s.assetRepo.Transaction(ctx, func(txRepo AssetRepository) error {
+		var err error
+		// 4. Simpan data induk Asset
+		newAsset, err = txRepo.InsertAsset(ctx, &Asset{
+			Code:            code,
+			Slug:            finalSlug,
+			CategoryId:      req.CategoryId,
+			Title:           req.Title,
+			Location:        req.Location,
+			Description:     req.Description,
+			Badge:           req.Badge,
+			PriceLabel:      req.PriceLabel,
+			Price:           req.Price,
+			PriceNegotiable: req.PriceNegotiable,
+			ViewCount:       0,
+			Status:          "ACTIVE",
+		})
+		if err != nil {
+			return fmt.Errorf("failed to insert asset: %w", err)
+		}
 
-	// 4. Simpan data induk Asset
-	newAsset, err := s.assetRepo.InsertAssetTx(ctx, tx, &Asset{
-		Code:            code,
-		Slug:            finalSlug,
-		CategoryId:      req.CategoryId,
-		Title:           req.Title,
-		Location:        req.Location,
-		Description:     req.Description,
-		Badge:           req.Badge,
-		PriceLabel:      req.PriceLabel,
-		Price:           req.Price,
-		PriceNegotiable: req.PriceNegotiable,
-		ViewCount:       0,
-		Status:          "ACTIVE",
+		// 5. Simpan data Asset Owner
+		owner := &AssetOwner{
+			AssetId:       newAsset.Id,
+			OwnerName:     req.Owner.OwnerName,
+			OwnerContact:  req.Owner.OwnerContact,
+			InternalNotes: req.Owner.InternalNotes,
+		}
+		if err := txRepo.InsertAssetOwner(ctx, owner); err != nil {
+			return fmt.Errorf("failed to insert asset owner: %w", err)
+		}
+
+		// 6. Simpan data Atribut (jika ada) menggunakan Bulk Insert
+		if len(req.Attributes) > 0 {
+			var attributeEntities []AssetAttributes
+			for _, attr := range req.Attributes {
+				attributeEntities = append(attributeEntities, AssetAttributes{
+					AssetId:             newAsset.Id,
+					CategoryAttributeId: attr.CategoryAttributeId,
+					CustomeLabel:        attr.CustomeLabel,
+					ValueText:           attr.ValueText,
+					ValueNumber:         attr.ValueNumber,
+					SortOrder:           attr.SortOrder,
+				})
+			}
+
+			if err := txRepo.BulkInsertAssetAttributes(ctx, attributeEntities); err != nil {
+				return fmt.Errorf("failed to insert asset attributes: %w", err)
+			}
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert asset: %w", err)
-	}
-
-	// 5. Simpan data Asset Owner
-	owner := &AssetOwner{
-		AssetId:       newAsset.Id,
-		OwnerName:     req.Owner.OwnerName,
-		OwnerContact:  req.Owner.OwnerContact,
-		InternalNotes: req.Owner.InternalNotes,
-	}
-	if err := s.assetRepo.InsertAssetOwnerTx(ctx, tx, owner); err != nil {
-		return nil, fmt.Errorf("failed to insert asset owner: %w", err)
-	}
-
-	// 6. Simpan data Atribut (jika ada) menggunakan Bulk Insert
-	if len(req.Attributes) > 0 {
-		var attributeEntities []AssetAttributes
-		for _, attr := range req.Attributes {
-			attributeEntities = append(attributeEntities, AssetAttributes{
-				AssetId:             newAsset.Id,
-				CategoryAttributeId: attr.CategoryAttributeId,
-				CustomeLabel:        attr.CustomeLabel,
-				ValueText:           attr.ValueText,
-				ValueNumber:         attr.ValueNumber,
-				SortOrder:           attr.SortOrder,
-			})
-		}
-
-		if err := s.assetRepo.BulkInsertAssetAttributesTx(ctx, tx, attributeEntities); err != nil {
-			return nil, fmt.Errorf("failed to insert asset attributes: %w", err)
-		}
-	}
-
-	// 7. Commit seluruh perubahan jika semua query sukses!
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, err
 	}
 
 	// 8. Ambil data atribut lengkap (JOIN ke master kategori attributes untuk nama, tipe data, dan satuan unit)
@@ -206,9 +203,9 @@ func (s *AssetService) CreateAsset(ctx context.Context, req *AssetRequest) (*Ass
 		CreatedAt:       newAsset.CreatedAt,
 		UpdatedAt:       newAsset.UpdatedAt,
 		Owner: &AssetOwnerResponse{
-			OwnerName:     owner.OwnerName,
-			OwnerContact:  owner.OwnerContact,
-			InternalNotes: owner.InternalNotes,
+			OwnerName:     req.Owner.OwnerName,
+			OwnerContact:  req.Owner.OwnerContact,
+			InternalNotes: req.Owner.InternalNotes,
 		},
 		Attributes: attributeResponses,
 		Media:      []AssetMediaResponse{}, // Media kosong saat awal pembuatan
@@ -604,102 +601,98 @@ func (s *AssetService) UpdateAsset(ctx context.Context, req *UpdateAssetRequest)
 		}
 	}
 
-	// 3. Buka transaksi database
-	tx, err := s.assetRepo.BeginTx(ctx)
+	// 3. Eksekusi update dalam transaksi database
+	err = s.assetRepo.Transaction(ctx, func(txRepo AssetRepository) error {
+		// 4. Update Status jika status_update == true
+		if req.StatusUpdate {
+			status := strings.TrimSpace(req.Status)
+			if status == "" {
+				return errors.New("status cannot be empty when status_update is true")
+			}
+			if err := txRepo.UpdateAssetStatus(ctx, req.Id, status); err != nil {
+				return fmt.Errorf("failed to update asset status: %w", err)
+			}
+		}
+
+		// 5. Update Informasi Umum jika general_update == true
+		if req.GeneralUpdate {
+			if strings.TrimSpace(req.Title) == "" {
+				return errors.New("title cannot be empty when general_update is true")
+			}
+
+			slug := existingAsset.Slug
+			// Jika judul berubah, update slug
+			if req.Title != existingAsset.Title {
+				baseSlug := generateSlug(req.Title)
+				slug = baseSlug
+				existingSlug, err := s.assetRepo.FindBySlug(ctx, slug)
+				if err == nil && existingSlug != nil && existingSlug.Id != req.Id {
+					slug = fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix()%10000)
+				}
+			}
+
+			assetToUpdate := &Asset{
+				BaseEntity: entity.BaseEntity{
+					Id: req.Id,
+				},
+				CategoryId:      existingAsset.CategoryId,
+				Title:           req.Title,
+				Slug:            slug,
+				Location:        req.Location,
+				Description:     req.Description,
+				Badge:           req.Badge,
+				PriceLabel:      req.PriceLabel,
+				Price:           req.Price,
+				PriceNegotiable: req.PriceNegotiable,
+			}
+
+			if err := txRepo.UpdateAsset(ctx, assetToUpdate); err != nil {
+				return fmt.Errorf("failed to update asset info: %w", err)
+			}
+		}
+
+		// 6. Update Owner Info jika owner_update == true
+		if req.OwnerUpdate {
+			ownerToUpdate := &AssetOwner{
+				AssetId:       req.Id,
+				OwnerName:     req.Owner.OwnerName,
+				OwnerContact:  req.Owner.OwnerContact,
+				InternalNotes: req.Owner.InternalNotes,
+			}
+			if err := txRepo.UpdateAssetOwner(ctx, ownerToUpdate); err != nil {
+				return fmt.Errorf("failed to update asset owner: %w", err)
+			}
+		}
+
+		// 7. Update Atribut jika attribute_update == true (clean replace)
+		if req.AttributeUpdate {
+			if err := txRepo.DeleteAttributesByAssetId(ctx, req.Id); err != nil {
+				return fmt.Errorf("failed to clear old attributes: %w", err)
+			}
+
+			if len(req.Attributes) > 0 {
+				var attributeEntities []AssetAttributes
+				for _, attr := range req.Attributes {
+					attributeEntities = append(attributeEntities, AssetAttributes{
+						AssetId:             req.Id,
+						CategoryAttributeId: attr.CategoryAttributeId,
+						CustomeLabel:        attr.CustomeLabel,
+						ValueText:           attr.ValueText,
+						ValueNumber:         attr.ValueNumber,
+						SortOrder:           attr.SortOrder,
+					})
+				}
+
+				if err := txRepo.BulkInsertAssetAttributes(ctx, attributeEntities); err != nil {
+					return fmt.Errorf("failed to insert new attributes: %w", err)
+				}
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	// 4. Update Status jika status_update == true
-	if req.StatusUpdate {
-		status := strings.TrimSpace(req.Status)
-		if status == "" {
-			return nil, errors.New("status cannot be empty when status_update is true")
-		}
-		if err := s.assetRepo.UpdateAssetStatusTx(ctx, tx, req.Id, status); err != nil {
-			return nil, fmt.Errorf("failed to update asset status: %w", err)
-		}
-	}
-
-	// 5. Update Informasi Umum jika general_update == true
-	if req.GeneralUpdate {
-		if strings.TrimSpace(req.Title) == "" {
-			return nil, errors.New("title cannot be empty when general_update is true")
-		}
-
-		slug := existingAsset.Slug
-		// Jika judul berubah, update slug
-		if req.Title != existingAsset.Title {
-			baseSlug := generateSlug(req.Title)
-			slug = baseSlug
-			existingSlug, err := s.assetRepo.FindBySlug(ctx, slug)
-			if err == nil && existingSlug != nil && existingSlug.Id != req.Id {
-				slug = fmt.Sprintf("%s-%d", baseSlug, time.Now().Unix()%10000)
-			}
-		}
-
-		assetToUpdate := &Asset{
-			BaseEntity: entity.BaseEntity{
-				Id: req.Id,
-			},
-			CategoryId:      existingAsset.CategoryId,
-			Title:           req.Title,
-			Slug:            slug,
-			Location:        req.Location,
-			Description:     req.Description,
-			Badge:           req.Badge,
-			PriceLabel:      req.PriceLabel,
-			Price:           req.Price,
-			PriceNegotiable: req.PriceNegotiable,
-		}
-
-		if err := s.assetRepo.UpdateAssetTx(ctx, tx, assetToUpdate); err != nil {
-			return nil, fmt.Errorf("failed to update asset info: %w", err)
-		}
-	}
-
-	// 6. Update Owner Info jika owner_update == true
-	if req.OwnerUpdate {
-		ownerToUpdate := &AssetOwner{
-			AssetId:       req.Id,
-			OwnerName:     req.Owner.OwnerName,
-			OwnerContact:  req.Owner.OwnerContact,
-			InternalNotes: req.Owner.InternalNotes,
-		}
-		if err := s.assetRepo.UpdateAssetOwnerTx(ctx, tx, ownerToUpdate); err != nil {
-			return nil, fmt.Errorf("failed to update asset owner: %w", err)
-		}
-	}
-
-	// 7. Update Atribut jika attribute_update == true (clean replace)
-	if req.AttributeUpdate {
-		if err := s.assetRepo.DeleteAttributesByAssetIdTx(ctx, tx, req.Id); err != nil {
-			return nil, fmt.Errorf("failed to clear old attributes: %w", err)
-		}
-
-		if len(req.Attributes) > 0 {
-			var attributeEntities []AssetAttributes
-			for _, attr := range req.Attributes {
-				attributeEntities = append(attributeEntities, AssetAttributes{
-					AssetId:             req.Id,
-					CategoryAttributeId: attr.CategoryAttributeId,
-					CustomeLabel:        attr.CustomeLabel,
-					ValueText:           attr.ValueText,
-					ValueNumber:         attr.ValueNumber,
-					SortOrder:           attr.SortOrder,
-				})
-			}
-
-			if err := s.assetRepo.BulkInsertAssetAttributesTx(ctx, tx, attributeEntities); err != nil {
-				return nil, fmt.Errorf("failed to insert new attributes: %w", err)
-			}
-		}
-	}
-
-	// 8. Commit transaksi
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, err
 	}
 
 	// 9. Hapus cache lama di Redis agar pengunjung langsung mendapat data terbaru

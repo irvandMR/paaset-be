@@ -7,11 +7,11 @@ import (
 	"tjus-be/internal/middleware"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
-func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environment, rdb *redis.Client) {
+func SetAssetRouter(rg *gin.RouterGroup, db *gorm.DB, env *config.Environment, rdb *redis.Client) {
 	repository := NewAssetRepository(db)
 	catRepository := category.NewCategoryRepository(db)
 	service := NewAssetService(repository, catRepository, rdb)

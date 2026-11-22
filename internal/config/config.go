@@ -1,13 +1,13 @@
 package config
 
 import (
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 type Config struct {
 	Env   *Environment
-	DB    *pgxpool.Pool
+	DB    *gorm.DB
 	Redis *redis.Client
 }
 
@@ -29,6 +29,8 @@ func (c *Config) Close() {
 		_ = c.Redis.Close()
 	}
 	if c.DB != nil {
-		c.DB.Close()
+		if sqlDB, err := c.DB.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
 	}
 }

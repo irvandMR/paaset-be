@@ -32,11 +32,11 @@ func (sr *settingsRepository) UpdateSettings(ctx context.Context, request Settin
 		Model(&Setting{}).
 		Where("id = ?", request.Id).
 		Updates(map[string]any{
-			"site_name":            request.SiteName,
-			"wa_number":            request.WaNumber,
-			"wa_button_text":       request.WaButtonText,
+			"site_name":           request.SiteName,
+			"wa_number":           request.WaNumber,
+			"wa_button_text":      request.WaButtonText,
 			"wa_message_template": request.WaMessageTemplate,
-			"updated_at":           dateTime,
+			"updated_at":          dateTime,
 		}).Error
 
 	if err != nil {

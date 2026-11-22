@@ -108,29 +108,29 @@ type AssetMediaRequest struct {
 }
 
 type UpdateAssetRequest struct {
-	Id              uuid.UUID          `json:"id" binding:"required"`
-	GeneralUpdate   bool               `json:"general_update"`
-	OwnerUpdate     bool               `json:"owner_update"`
-	AttributeUpdate bool               `json:"attribute_update"`
-	StatusUpdate    bool               `json:"status_update"`
+	Id              uuid.UUID `json:"id" binding:"required"`
+	GeneralUpdate   bool      `json:"general_update"`
+	OwnerUpdate     bool      `json:"owner_update"`
+	AttributeUpdate bool      `json:"attribute_update"`
+	StatusUpdate    bool      `json:"status_update"`
 
 	// Fields for GeneralUpdate
-	Title           string             `json:"title"`
-	Location        string             `json:"location"`
-	Badge           string             `json:"badge"`
-	PriceLabel      string             `json:"price_label"`
-	Price           int64              `json:"price"`
-	PriceNegotiable bool               `json:"price_negotiable"`
-	Description     string             `json:"description"`
+	Title           string `json:"title"`
+	Location        string `json:"location"`
+	Badge           string `json:"badge"`
+	PriceLabel      string `json:"price_label"`
+	Price           int64  `json:"price"`
+	PriceNegotiable bool   `json:"price_negotiable"`
+	Description     string `json:"description"`
 
 	// Field for StatusUpdate
-	Status          string             `json:"status"`
+	Status string `json:"status"`
 
 	// Field for OwnerUpdate
-	Owner           AssetOwnerRequest  `json:"owner"`
+	Owner AssetOwnerRequest `json:"owner"`
 
 	// Field for AttributeUpdate
-	Attributes      []AttributeRequest `json:"attributes"`
+	Attributes []AttributeRequest `json:"attributes"`
 }
 
 type AssetFilter struct {

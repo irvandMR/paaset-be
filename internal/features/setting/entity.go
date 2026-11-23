@@ -4,10 +4,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type Setting struct {
-	Id                uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	Id                uuid.UUID `gorm:"type:uuid;primaryKey"`
 	SiteName          string    `gorm:"column:site_name;not null"`
 	WaNumber          string    `gorm:"column:wa_number;not null"`
 	WaButtonText      string    `gorm:"column:wa_button_text;not null"`
@@ -17,6 +18,13 @@ type Setting struct {
 
 func (Setting) TableName() string {
 	return "tbl_settings"
+}
+
+func (s *Setting) BeforeCreate(tx *gorm.DB) error {
+	if s.Id == uuid.Nil {
+		s.Id = uuid.New()
+	}
+	return nil
 }
 
 type SettingsRequest struct {

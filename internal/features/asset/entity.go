@@ -5,6 +5,7 @@ import (
 	"tjus-be/internal/pkg/entity"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Entity
@@ -30,7 +31,7 @@ func (Asset) TableName() string {
 }
 
 type AssetAttributes struct {
-	Id                  uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	Id                  uuid.UUID `json:"id" gorm:"type:uuid;primaryKey"`
 	AssetId             uuid.UUID `json:"asset_id" gorm:"column:asset_id"`
 	CategoryAttributeId uuid.UUID `json:"attribute_id" gorm:"column:attribute_id"`
 	Name                *string   `json:"name,omitempty" gorm:"->"`
@@ -46,8 +47,15 @@ func (AssetAttributes) TableName() string {
 	return "tbl_asset_attribute_values"
 }
 
+func (a *AssetAttributes) BeforeCreate(tx *gorm.DB) error {
+	if a.Id == uuid.Nil {
+		a.Id = uuid.New()
+	}
+	return nil
+}
+
 type AssetMedia struct {
-	Id        uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	Id        uuid.UUID `json:"id" gorm:"type:uuid;primaryKey"`
 	AssetId   uuid.UUID `json:"asset_id" gorm:"column:asset_id"`
 	TypeMedia string    `json:"type_media" gorm:"column:type_media"`
 	FilePath  string    `json:"file_path" gorm:"column:file_path"`
@@ -57,6 +65,13 @@ type AssetMedia struct {
 
 func (AssetMedia) TableName() string {
 	return "tbl_asset_media"
+}
+
+func (m *AssetMedia) BeforeCreate(tx *gorm.DB) error {
+	if m.Id == uuid.Nil {
+		m.Id = uuid.New()
+	}
+	return nil
 }
 
 type AssetOwner struct {

@@ -77,7 +77,7 @@ func (ar *assetRepository) FindAll(ctx context.Context, filter AssetFilter) ([]A
 
 	// Hitung total data untuk pagination meta
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 

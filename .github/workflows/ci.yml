@@ -29,5 +29,5 @@ jobs:
         run: go test -v -race -coverprofile=coverage.out ./...
 
       - name: Build Binary
-        run: CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o tjus-app ./cmd/tjus
+        run: CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o paaset-be ./cmd/paaset
 

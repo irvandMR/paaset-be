@@ -61,7 +61,7 @@ This starts PostgreSQL, Redis, and the Backend API, and automatically creates al
 2. Run the server:
    ```bash
    go mod download
-   go run ./cmd/tjus/main.go
+   go run ./cmd/paaset/main.go
    ```
 
 ---

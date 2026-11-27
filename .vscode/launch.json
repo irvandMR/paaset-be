@@ -2,11 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch tjus-be",
+            "name": "Launch paaset-be",
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/cmd/tjus/main.go",
+            "program": "${workspaceFolder}/cmd/paaset/main.go",
             "cwd": "${workspaceFolder}",
             "env": {
                 "DB_URL": "postgresql://postgres:postgres@localhost:5433/tjus_db_dev?sslmode=disable",

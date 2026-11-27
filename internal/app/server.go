@@ -71,7 +71,7 @@ func (s *Server) Start() {
 	}
 
 	go func() {
-		log.Printf("Server TJUS berjalan di port: %s\n", s.Env.Port)
+		log.Printf("Server Paaset berjalan di port: %s\n", s.Env.Port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Listen error: %s\n", err)
 		}
@@ -81,7 +81,7 @@ func (s *Server) Start() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Mematikan server TJUS secara aman (Graceful Shutdown)...")
+	log.Println("Mematikan server Paaset secara aman (Graceful Shutdown)...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
